@@ -20,8 +20,8 @@ class FakeSettingsRepository:
     def __init__(self, values: dict[str, str]) -> None:
         self.values = values
 
-    def get_value(self, key: str, default: str) -> str:
-        return self.values.get(key, default)
+    def get_value(self, key: str) -> str:
+        return self.values[key]
 
 
 class FakeMessagingService:
@@ -35,7 +35,7 @@ class FakeMessagingService:
 class TelegramBotUseCaseTest(unittest.IsolatedAsyncioTestCase):
     async def test_start_saves_user_and_replaces_name_placeholder(self) -> None:
         user_repo = FakeUserRepository()
-        settings_repo = FakeSettingsRepository({"welcome_msg": "Hola {name}, bienvenido"})
+        settings_repo = FakeSettingsRepository({"welcome_msg": "Hello {name}, welcome"})
         messenger = FakeMessagingService()
         use_case = TelegramBotUseCase(user_repo, settings_repo, messenger)
 
@@ -43,29 +43,29 @@ class TelegramBotUseCaseTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(user_repo.saved_users), 1)
         self.assertEqual(user_repo.saved_users[0].status, "inactive")
-        self.assertEqual(messenger.messages, [(10, "Hola Cam, bienvenido")])
+        self.assertEqual(messenger.messages, [(10, "Hello Cam, welcome")])
 
     async def test_subscribe_updates_status_to_active(self) -> None:
         user_repo = FakeUserRepository()
-        settings_repo = FakeSettingsRepository({"subscribe_ok": "Alertas activadas"})
+        settings_repo = FakeSettingsRepository({"subscribe_ok": "Notifications enabled"})
         messenger = FakeMessagingService()
         use_case = TelegramBotUseCase(user_repo, settings_repo, messenger)
 
         await use_case.execute("/subscribe", 10, "Cam", "camtest")
 
         self.assertEqual(user_repo.status_updates, [(10, "active")])
-        self.assertEqual(messenger.messages, [(10, "Alertas activadas")])
+        self.assertEqual(messenger.messages, [(10, "Notifications enabled")])
 
     async def test_unsubscribe_updates_status_to_inactive(self) -> None:
         user_repo = FakeUserRepository()
-        settings_repo = FakeSettingsRepository({"unsubscribe_ok": "Alertas desactivadas"})
+        settings_repo = FakeSettingsRepository({"unsubscribe_ok": "Notifications disabled"})
         messenger = FakeMessagingService()
         use_case = TelegramBotUseCase(user_repo, settings_repo, messenger)
 
         await use_case.execute("/unsubscribe", 10, "Cam", "camtest")
 
         self.assertEqual(user_repo.status_updates, [(10, "inactive")])
-        self.assertEqual(messenger.messages, [(10, "Alertas desactivadas")])
+        self.assertEqual(messenger.messages, [(10, "Notifications disabled")])
 
 
 if __name__ == "__main__":

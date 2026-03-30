@@ -49,7 +49,7 @@ source .venv/bin/activate
 Install dependencies:
 
 ```bash
-pip install -r requirements.txt uvicorn
+pip install -r requirements.txt uvicorn==0.42.0
 ```
 
 Start FastAPI:
@@ -73,7 +73,7 @@ Expected response:
 If you prefer not to activate the environment, you can use explicit paths:
 
 ```bash
-.venv/bin/python -m pip install -r requirements.txt uvicorn
+.venv/bin/python -m pip install -r requirements.txt uvicorn==0.42.0
 .venv/bin/uvicorn entrypoints:app --app-dir supabase/functions/telegram-bot --host 127.0.0.1 --port 8000 --reload
 ```
 
@@ -86,9 +86,17 @@ If it receives an update whose `message.text` is `"/start"`:
 1. It rebuilds the Telegram `Update`.
 2. It reads `user.id`, `user.first_name`, and `user.username`.
 3. It performs an `upsert` into the `users` table.
-4. It reads `welcome_msg` from `bot_settings` if it exists.
+4. It reads `welcome_msg` from `bot_settings`.
 5. If that template includes a placeholder, it must use `{name}` because the code replaces that exact token.
 6. It sends a welcome message through Telegram.
+
+The bot now expects these keys to exist in `bot_settings`:
+
+- `welcome_msg`
+- `subscribe_ok`
+- `unsubscribe_ok`
+
+If any of them is missing when its command is executed, the request returns an error instead of using a hardcoded fallback message.
 
 ## `curl` To Test Writes In Supabase
 

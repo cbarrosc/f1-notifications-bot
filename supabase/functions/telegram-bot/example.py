@@ -12,7 +12,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 
 # ==========================================
-# 0. CONFIGURACIÓN & LOGS
+# 0. CONFIGURATION & LOGS
 # ==========================================
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 # ==========================================
-# 1. DOMAIN (El corazón del negocio)
+# 1. DOMAIN (The business core)
 # ==========================================
 class User:
     def __init__(
@@ -45,7 +45,7 @@ class User:
 
 
 # ==========================================
-# 2. PORTS (Interfaces / Contratos)
+# 2. PORTS (Interfaces / Contracts)
 # ==========================================
 class UserRepository(ABC):
     @abstractmethod
@@ -66,10 +66,10 @@ class MessagingService(ABC):
 
 
 # ==========================================
-# 3. APPLICATION (Casos de Uso)
+# 3. APPLICATION (Use Cases)
 # ==========================================
 class StartBotUseCase:
-    """Lógica pura de negocio para el comando /start"""
+    """Pure business logic for the /start command."""
 
     def __init__(
         self,
@@ -84,27 +84,27 @@ class StartBotUseCase:
     async def execute(
         self, user_id: int, first_name: str, username: Optional[str]
     ) -> None:
-        # 1. Crear entidad de dominio
+        # 1. Create the domain entity
         user = User(user_id, first_name, username)
 
-        # 2. Persistir (el puerto se encarga del 'cómo')
+        # 2. Persist it, the port handles the technical details
         self.user_repo.save_user(user)
 
-        # 3. Obtener texto de bienvenida
-        welcome_tpl = self.settings_repo.get_value("welcome_msg", "¡Wena {nombre}!")
-        final_text = welcome_tpl.replace("{nombre}", first_name)
+        # 3. Load the welcome text
+        welcome_tpl = self.settings_repo.get_value("welcome_msg", "Hello {name}!")
+        final_text = welcome_tpl.replace("{name}", first_name)
 
-        # 4. Notificar
+        # 4. Notify the user
         await self.messenger.send_welcome(user_id, final_text)
 
 
 # ==========================================
-# 4. ADAPTERS (Implementaciones técnicas)
+# 4. ADAPTERS (Technical implementations)
 # ==========================================
 
 
 class SupabaseAdapter(UserRepository, SettingsRepository):
-    """Adaptador para persistencia en Supabase"""
+    """Adapter for Supabase persistence."""
 
     def __init__(self) -> None:
         url = os.getenv("SUPABASE_URL")
@@ -124,13 +124,13 @@ class SupabaseAdapter(UserRepository, SettingsRepository):
 
 
 class TelegramAdapter(MessagingService):
-    """Adaptador para hablar con Telegram"""
+    """Adapter for talking to Telegram."""
 
     def __init__(self, bot_token: str) -> None:
         self.app = Application.builder().token(bot_token).build()
 
     async def send_welcome(self, chat_id: int, text: str) -> None:
-        keyboard = [[InlineKeyboardButton("🔔 Activar Alertas", callback_data="sub")]]
+        keyboard = [[InlineKeyboardButton("🔔 Enable Notifications", callback_data="sub")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await self.app.bot.send_message(
             chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode="Markdown"
@@ -138,11 +138,11 @@ class TelegramAdapter(MessagingService):
 
 
 # ==========================================
-# 5. DRIVING ADAPTER (Controlador FastAPI)
+# 5. DRIVING ADAPTER (FastAPI controller)
 # ==========================================
 app = FastAPI()
 
-# Inyección de dependencias (Singleton para los adaptadores)
+# Dependency injection (singleton adapters)
 db_adapter = SupabaseAdapter()
 telegram_token = os.getenv("TELEGRAM_TOKEN")
 if telegram_token is None:
@@ -153,19 +153,19 @@ start_use_case = StartBotUseCase(db_adapter, db_adapter, telegram_adapter)
 
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
-    """Controlador que expone el endpoint para Telegram"""
+    """Controller that exposes the Telegram endpoint."""
     try:
         data = await request.json()
         update = Update.de_json(data, telegram_adapter.app.bot)
 
         if update.message and update.message.text == "/start":
             user = update.effective_user
-            # Ejecutamos el caso de uso sin saber NADA de Supabase o Telegram internals
+            # Execute the use case without knowing anything about Supabase or Telegram internals
             await start_use_case.execute(user.id, user.first_name, user.username)
 
         return {"status": "ok"}
     except Exception as exc:
-        logger.error("Error en controlador: %s", exc)
+        logger.error("Controller error: %s", exc)
         return {"status": "error", "detail": str(exc)}
 
 

@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 def _get_env(name: str) -> str:
-    """Devuelve una variable de entorno obligatoria o falla al iniciar."""
+    """Return a required environment variable or fail at startup."""
 
-    # Fallar al arrancar simplifica el diagnóstico y evita errores más opacos
-    # durante el manejo de requests.
+    # Failing at startup simplifies diagnosis and avoids more opaque
+    # request-time errors.
     value = os.getenv(name)
     if value is None or value == "":
         raise ValueError(f"Missing {name}.")
@@ -38,17 +38,19 @@ bot_use_case = TelegramBotUseCase(supabase_adapter, supabase_adapter, telegram_a
 
 @app.post("/webhook")
 async def telegram_webhook(request: Request) -> dict[str, str]:
-    """Procesa updates de Telegram y despacha los comandos soportados."""
+    """Process Telegram updates and dispatch supported commands."""
 
     try:
+        logger.info("Received Telegram webhook request")
         payload: object = await request.json()
         if not isinstance(payload, dict):
             raise ValueError("Invalid Telegram payload.")
 
-        # Telegram entrega el update como JSON; `de_json` reconstruye el objeto
-        # usando el bot configurado para conservar helpers del SDK.
+        # Telegram delivers the update as JSON; `de_json` reconstructs the
+        # object using the configured bot to preserve SDK helpers.
         update = Update.de_json(payload, telegram_adapter.app.bot)
         if update is None:
+            logger.warning("Telegram update could not be parsed")
             return {"status": "ok"}
 
         incoming_message = update.message
@@ -60,21 +62,28 @@ async def telegram_webhook(request: Request) -> dict[str, str]:
             user = update.effective_user
             if user is None:
                 raise ValueError("Update missing effective user.")
+            logger.info(
+                "Dispatching command=%s user_id=%s",
+                incoming_message.text,
+                user.id,
+            )
             await bot_use_case.execute(
                 incoming_message.text,
                 user.id,
                 user.first_name,
                 user.username,
             )
+        else:
+            logger.info("Ignoring unsupported or empty Telegram message")
 
         return {"status": "ok"}
     except Exception as exc:
-        logger.error("Error en controlador: %s", exc)
+        logger.exception("Controller error: %s", exc)
         return {"status": "error", "detail": str(exc)}
 
 
 @app.get("/")
 async def health() -> dict[str, str]:
-    """Expone un endpoint liviano para health checks."""
+    """Expose a lightweight endpoint for health checks."""
 
     return {"status": "online", "architecture": "hexagonal"}

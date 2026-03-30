@@ -4,24 +4,24 @@ from domain import User
 
 
 class UserRepository(Protocol):
-    """Contrato para persistir usuarios del dominio."""
+    """Contract for persisting domain users."""
 
-    # Puerto de salida para persistir usuarios sin acoplar el dominio
-    # a una base de datos concreta.
+    # Output port for persisting users without coupling the domain
+    # to a specific database.
     def save_user(self, user: User) -> None: ...
 
     def update_user_status(self, user_id: int, status: str) -> None: ...
 
 
 class SettingsRepository(Protocol):
-    """Contrato para leer configuración del bot."""
+    """Contract for reading bot configuration."""
 
-    # Permite leer configuración dinámica del bot desde cualquier origen.
-    def get_value(self, key: str, default: str) -> str: ...
+    # Allows reading dynamic bot configuration from any source.
+    def get_value(self, key: str) -> str: ...
 
 
 class MessagingService(Protocol):
-    """Contrato para enviar mensajes hacia el usuario final."""
+    """Contract for sending messages to the end user."""
 
-    # Abstrae el canal de entrega para que el caso de uso no dependa de Telegram.
+    # Abstracts the delivery channel so the use case does not depend on Telegram.
     async def send_message(self, chat_id: int, text: str) -> None: ...

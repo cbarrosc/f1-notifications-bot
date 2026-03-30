@@ -3,19 +3,19 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class User:
-    """Representa al usuario del bot dentro del dominio."""
+    """Represent the bot user inside the domain."""
 
-    # La entidad de dominio se mantiene inmutable para evitar cambios
-    # accidentales una vez construida dentro del caso de uso.
+    # The domain entity stays immutable to avoid accidental changes
+    # once constructed inside the use case.
     user_id: int
     first_name: str
     username: str | None
     status: str = "inactive"
 
     def to_record(self) -> dict[str, int | str | None]:
-        """Convierte la entidad al formato persistible esperado por Supabase."""
+        """Convert the entity to the persistable format expected by Supabase."""
 
-        # Este formato refleja directamente la estructura esperada por Supabase.
+        # This format mirrors the structure expected by Supabase.
         return {
             "user_id": self.user_id,
             "first_name": self.first_name,
