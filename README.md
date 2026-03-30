@@ -112,12 +112,12 @@ curl -X POST http://127.0.0.1:8000/webhook \
       "message_id": 1,
       "date": 1711740000,
       "chat": {
-        "id": 1568732224,
+        "id": "<YOUR_TELEGRAM_ID>",
         "type": "private",
         "first_name": "John"
       },
       "from": {
-        "id": 1568732224,
+        "id": "<YOUR_TELEGRAM_ID>",
         "is_bot": false,
         "first_name": "John",
         "username": "john_doe"
@@ -144,12 +144,12 @@ curl -X POST http://127.0.0.1:8000/webhook \
       "message_id": 2,
       "date": 1711740001,
       "chat": {
-        "id": 1568732224,
+        "id": "<YOUR_TELEGRAM_ID>",
         "type": "private",
         "first_name": "John"
       },
       "from": {
-        "id": 1568732224,
+        "id": "<YOUR_TELEGRAM_ID>",
         "is_bot": false,
         "first_name": "John",
         "username": "john_doe"
@@ -178,12 +178,12 @@ curl -X POST http://127.0.0.1:8000/webhook \
       "message_id": 3,
       "date": 1711740002,
       "chat": {
-        "id": 1568732224,
+        "id": "<YOUR_TELEGRAM_ID>",
         "type": "private",
         "first_name": "John"
       },
       "from": {
-        "id": 1568732224,
+        "id": "<YOUR_TELEGRAM_ID>",
         "is_bot": false,
         "first_name": "John",
         "username": "john_doe"
