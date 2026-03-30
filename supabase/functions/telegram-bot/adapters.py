@@ -11,11 +11,17 @@ from domain import User
 logger = logging.getLogger(__name__)
 
 
-class SupabaseAdapter:
-    """Implement persistence and settings reads using Supabase."""
+def _build_supabase_client(supabase_url: str, supabase_key: str) -> Client:
+    """Create the shared Supabase client used by repositories."""
 
-    def __init__(self, supabase_url: str, supabase_key: str) -> None:
-        self.client: Client = create_client(supabase_url, supabase_key)
+    return create_client(supabase_url, supabase_key)
+
+
+class SupabaseUserRepository:
+    """Persist and update bot users using Supabase."""
+
+    def __init__(self, client: Client) -> None:
+        self.client = client
 
     def save_user(self, user: User) -> None:
         """Insert a user or refresh profile data without resetting the status."""
@@ -54,6 +60,13 @@ class SupabaseAdapter:
         logger.info("Updating user status user_id=%s status=%s", user_id, status)
         self.client.table("users").update({"status": status}).eq("user_id", user_id).execute()
 
+
+class SupabaseSettingsRepository:
+    """Read bot configuration values from Supabase."""
+
+    def __init__(self, client: Client) -> None:
+        self.client = client
+
     def get_value(self, key: str) -> str:
         """Get a required bot setting or fail when it does not exist."""
 
@@ -76,7 +89,7 @@ class SupabaseAdapter:
         raise ValueError(f"Invalid bot setting value for key: {key}")
 
 
-class TelegramAdapter:
+class TelegramClient:
     """Wrap the Telegram client used to send bot messages."""
 
     def __init__(self, bot_token: str) -> None:

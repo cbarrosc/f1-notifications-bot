@@ -7,7 +7,12 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from telegram import Update
 
-from adapters import SupabaseAdapter, TelegramAdapter
+from adapters import (
+    TelegramClient,
+    SupabaseSettingsRepository,
+    SupabaseUserRepository,
+    _build_supabase_client,
+)
 from application import TelegramBotUseCase
 
 
@@ -28,12 +33,18 @@ def _get_env(name: str) -> str:
 
 
 app = FastAPI()
-supabase_adapter = SupabaseAdapter(
+supabase_client = _build_supabase_client(
     supabase_url=_get_env("SUPABASE_URL"),
     supabase_key=_get_env("SUPABASE_KEY"),
 )
-telegram_adapter = TelegramAdapter(_get_env("TELEGRAM_TOKEN"))
-bot_use_case = TelegramBotUseCase(supabase_adapter, supabase_adapter, telegram_adapter)
+user_repository = SupabaseUserRepository(supabase_client)
+settings_repository = SupabaseSettingsRepository(supabase_client)
+telegram_client = TelegramClient(_get_env("TELEGRAM_TOKEN"))
+bot_use_case = TelegramBotUseCase(
+    user_repository,
+    settings_repository,
+    telegram_client,
+)
 
 
 @app.post("/webhook")
@@ -48,7 +59,7 @@ async def telegram_webhook(request: Request) -> dict[str, str]:
 
         # Telegram delivers the update as JSON; `de_json` reconstructs the
         # object using the configured bot to preserve SDK helpers.
-        update = Update.de_json(payload, telegram_adapter.app.bot)
+        update = Update.de_json(payload, telegram_client.app.bot)
         if update is None:
             logger.warning("Telegram update could not be parsed")
             return {"status": "ok"}

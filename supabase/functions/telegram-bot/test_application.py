@@ -17,7 +17,7 @@ supabase_module.Client = object
 supabase_module.create_client = lambda *_args, **_kwargs: None
 sys.modules.setdefault("supabase", supabase_module)
 
-from adapters import SupabaseAdapter
+from adapters import SupabaseSettingsRepository, SupabaseUserRepository
 
 
 class FakeUserRepository:
@@ -120,6 +120,8 @@ class FakeSupabaseClient:
     def table(self, name: str) -> object:
         if name == "users":
             return FakeUsersTable(self)
+        if name == "bot_settings":
+            return FakeSupabaseQuery(self.existing_rows, name)
         raise AssertionError(f"Unexpected table requested: {name}")
 
 
@@ -137,16 +139,15 @@ class FakeUsersTable:
         return FakeSupabaseQuery([], "users")
 
 
-class SupabaseAdapterTest(unittest.TestCase):
+class SupabaseUserRepositoryTest(unittest.TestCase):
     def test_save_user_preserves_existing_status_when_user_already_exists(self) -> None:
-        adapter = object.__new__(SupabaseAdapter)
-        adapter.client = FakeSupabaseClient([{"status": "active"}])
+        repository = SupabaseUserRepository(FakeSupabaseClient([{"status": "active"}]))
 
-        adapter.save_user(User(user_id=10, first_name="Cam", username="camtest"))
+        repository.save_user(User(user_id=10, first_name="Cam", username="camtest"))
 
-        self.assertEqual(len(adapter.client.upsert_calls), 1)
+        self.assertEqual(len(repository.client.upsert_calls), 1)
         self.assertEqual(
-            adapter.client.upsert_calls[0]["record"],
+            repository.client.upsert_calls[0]["record"],
             {
                 "user_id": 10,
                 "first_name": "Cam",
@@ -156,14 +157,13 @@ class SupabaseAdapterTest(unittest.TestCase):
         )
 
     def test_save_user_keeps_default_inactive_for_new_user(self) -> None:
-        adapter = object.__new__(SupabaseAdapter)
-        adapter.client = FakeSupabaseClient([])
+        repository = SupabaseUserRepository(FakeSupabaseClient([]))
 
-        adapter.save_user(User(user_id=10, first_name="Cam", username="camtest"))
+        repository.save_user(User(user_id=10, first_name="Cam", username="camtest"))
 
-        self.assertEqual(len(adapter.client.upsert_calls), 1)
+        self.assertEqual(len(repository.client.upsert_calls), 1)
         self.assertEqual(
-            adapter.client.upsert_calls[0]["record"],
+            repository.client.upsert_calls[0]["record"],
             {
                 "user_id": 10,
                 "first_name": "Cam",
@@ -171,6 +171,15 @@ class SupabaseAdapterTest(unittest.TestCase):
                 "status": "inactive",
             },
         )
+
+
+class SupabaseSettingsRepositoryTest(unittest.TestCase):
+    def test_get_value_returns_string_setting(self) -> None:
+        repository = SupabaseSettingsRepository(FakeSupabaseClient([{"value": "hello"}]))
+
+        value = repository.get_value("welcome_msg")
+
+        self.assertEqual(value, "hello")
 
 
 if __name__ == "__main__":

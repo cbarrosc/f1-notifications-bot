@@ -8,8 +8,9 @@ Yes. Database writes are done with `supabase-py`, not with direct SQL and not wi
 
 The flow is here:
 
-- [adapters.py](/mnt/c/Users/cyani/Documents/test/notifications-f1/supabase/functions/telegram-bot/adapters.py#L13) creates the client with `create_client(supabase_url, supabase_key)`.
-- [adapters.py](/mnt/c/Users/cyani/Documents/test/notifications-f1/supabase/functions/telegram-bot/adapters.py#L16) persists with `self.client.table("users").upsert(...).execute()`.
+- [adapters.py](/mnt/c/Users/cyani/Documents/test/notifications-f1/supabase/functions/telegram-bot/adapters.py) creates a shared Supabase client and exposes separate repositories for `users` and `bot_settings`.
+- [adapters.py](/mnt/c/Users/cyani/Documents/test/notifications-f1/supabase/functions/telegram-bot/adapters.py) persists users with `self.client.table("users").upsert(...).execute()`.
+- [adapters.py](/mnt/c/Users/cyani/Documents/test/notifications-f1/supabase/functions/telegram-bot/adapters.py) sends Telegram messages through `TelegramClient`.
 - [entrypoints.py](/mnt/c/Users/cyani/Documents/test/notifications-f1/supabase/functions/telegram-bot/entrypoints.py#L39) exposes `POST /webhook`.
 - [application.py](/mnt/c/Users/cyani/Documents/test/notifications-f1/supabase/functions/telegram-bot/application.py#L18) orchestrates the supported Telegram commands.
 
