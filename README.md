@@ -214,6 +214,7 @@ In the `users` table, you should end up with something equivalent to:
 ```
 
 The operation uses `upsert`, so if you send `/start` again for the same `user_id`, it updates the row instead of duplicating it.
+If the row already exists, the current `status` is preserved, so repeated `/start` does not silently unsubscribe an active user.
 
 ## Verify The Row Through Supabase REST
 

@@ -18,14 +18,35 @@ class SupabaseAdapter:
         self.client: Client = create_client(supabase_url, supabase_key)
 
     def save_user(self, user: User) -> None:
-        """Insert or update a user identified by `user_id`."""
+        """Insert a user or refresh profile data without resetting the status."""
+
+        existing_status = self._get_user_status(user.user_id)
+        record = user.to_record()
+        if existing_status is not None:
+            record["status"] = existing_status
 
         # Upsert avoids duplicates when the same user runs /start again.
         logger.info("Upserting user user_id=%s", user.user_id)
         self.client.table("users").upsert(
-            user.to_record(),
+            record,
             on_conflict="user_id",
         ).execute()
+
+    def _get_user_status(self, user_id: int) -> str | None:
+        """Return the current status for an existing user, if present."""
+
+        logger.info("Fetching current user status user_id=%s", user_id)
+        response = self.client.table("users").select("status").eq("user_id", user_id).limit(1).execute()
+        response_data: object = response.data
+        if not isinstance(response_data, list) or len(response_data) == 0:
+            return None
+
+        first_row = response_data[0]
+        if not isinstance(first_row, dict):
+            return None
+
+        status = first_row.get("status")
+        return status if isinstance(status, str) else None
 
     def update_user_status(self, user_id: int, status: str) -> None:
         """Update the user's status if the row already exists."""
