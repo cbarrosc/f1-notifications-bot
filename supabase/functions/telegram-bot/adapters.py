@@ -15,6 +15,15 @@ from domain import PodiumFinisher, PostRaceBriefing, Session, User
 
 
 logger = logging.getLogger(__name__)
+ALLOWED_SESSION_NAMES = {
+    "Practice 1",
+    "Practice 2",
+    "Practice 3",
+    "Qualifying",
+    "Race",
+    "Sprint Qualifying",
+    "Sprint",
+}
 
 
 def _build_supabase_client(supabase_url: str, supabase_key: str) -> Client:
@@ -283,6 +292,33 @@ class OpenF1SessionProvider:
             session_type=next_session.session_name,
         )
 
+    def get_next_race_after(self, when: datetime) -> Session | None:
+        """Fetch and return the next upcoming race after the provided time."""
+
+        year = when.year
+        sessions = self._get_sessions_for_year(year, session_name="Race")
+        upcoming_races = [
+            session for session in sessions if session.date_start > when
+        ]
+        if not upcoming_races:
+            return None
+
+        next_race = min(upcoming_races, key=lambda session: session.date_start)
+        meeting_details = self._get_meeting_details(year, next_race.meeting_key)
+        return Session(
+            session_name=_build_session_display_name(
+                next_race.session_name,
+                meeting_details["name"],
+            ),
+            date_start=next_race.date_start,
+            date_end=next_race.date_end,
+            session_key=next_race.session_key,
+            meeting_key=next_race.meeting_key,
+            meeting_name=meeting_details["short_name"],
+            location=meeting_details["location"],
+            session_type=next_race.session_name,
+        )
+
     def get_post_race_briefing(self, when: datetime) -> PostRaceBriefing | None:
         """Fetch the latest completed race, its podium and the next grand prix."""
 
@@ -370,6 +406,8 @@ class OpenF1SessionProvider:
             raw_date_start = row.get("date_start")
             raw_date_end = row.get("date_end")
             if not isinstance(session_name, str) or not isinstance(raw_date_start, str):
+                continue
+            if session_name not in ALLOWED_SESSION_NAMES:
                 continue
 
             meeting_key = row.get("meeting_key")

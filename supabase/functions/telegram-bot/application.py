@@ -229,7 +229,7 @@ class WakeUpUseCase:
         raise ValueError(f"Unsupported trigger_type: {trigger_type}")
 
     async def _send_weekly_digest(self, now: datetime) -> dict[str, object]:
-        next_session = self._session_provider.get_next_session_after(now)
+        next_session = self._session_provider.get_next_race_after(now)
         response: dict[str, object] = {
             "status": "awake",
             "source": self._session_provider.get_source_name(),

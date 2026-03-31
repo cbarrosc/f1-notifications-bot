@@ -21,7 +21,7 @@ class WakeUpUseCaseTest(unittest.IsolatedAsyncioTestCase):
             meeting_key=1290,
             location="Melbourne",
         )
-        provider = FakeSessionProvider(next_session)
+        provider = FakeSessionProvider(None, next_race=next_session)
         settings_repo = FakeSettingsRepository(
             {"weekly_summary_msg": "Hola {name}, proxima parada: {location} a las {time} {flag} ({tz})"}
         )
@@ -47,7 +47,8 @@ class WakeUpUseCaseTest(unittest.IsolatedAsyncioTestCase):
 
         result = await use_case.execute("weekly_digest", now)
 
-        self.assertEqual(provider.requested_instants, [now])
+        self.assertEqual(provider.next_race_requested_instants, [now])
+        self.assertEqual(provider.requested_instants, [])
         self.assertEqual(
             messenger.messages,
             [
@@ -94,7 +95,7 @@ class WakeUpUseCaseTest(unittest.IsolatedAsyncioTestCase):
             date_start=datetime(2026, 4, 10, 1, 30, tzinfo=UTC),
             location="Melbourne",
         )
-        provider = FakeSessionProvider(next_session)
+        provider = FakeSessionProvider(None, next_race=next_session)
         settings_repo = FakeSettingsRepository(
             {"weekly_summary_msg": "Proxima parada: {location} a las {time}"}
         )
@@ -110,7 +111,7 @@ class WakeUpUseCaseTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_weekly_digest_returns_no_session_found_when_missing(self) -> None:
         now = datetime(2026, 3, 30, 14, 0, tzinfo=UTC)
-        provider = FakeSessionProvider(None)
+        provider = FakeSessionProvider(None, next_race=None)
         settings_repo = FakeSettingsRepository({"weekly_summary_msg": "unused"})
         user_repo = FakeUserRepository()
         messenger = FakeMessagingService()
@@ -129,7 +130,7 @@ class WakeUpUseCaseTest(unittest.IsolatedAsyncioTestCase):
             date_start=datetime(2026, 4, 10, 1, 30, tzinfo=UTC),
             location=None,
         )
-        provider = FakeSessionProvider(next_session)
+        provider = FakeSessionProvider(None, next_race=next_session)
         settings_repo = FakeSettingsRepository(
             {"weekly_summary_msg": "Lugar: {location} / Hora: {time} {flag} / TZ: {tz}"}
         )
@@ -181,7 +182,7 @@ class WakeUpUseCaseTest(unittest.IsolatedAsyncioTestCase):
             )
         ]
         use_case = WakeUpUseCase(
-            FakeSessionProvider(next_session),
+            FakeSessionProvider(None, next_race=next_session),
             FakeSettingsRepository({}),
             user_repo,
             FakeMessagingService(),

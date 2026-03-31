@@ -119,16 +119,23 @@ class FakeSessionProvider:
         next_session: Session | None,
         source_name: str = "OpenF1",
         post_race_briefing: PostRaceBriefing | None = None,
+        next_race: Session | None = None,
     ) -> None:
         self.next_session = next_session
         self.source_name = source_name
         self.post_race_briefing = post_race_briefing
+        self.next_race = next_race if next_race is not None else next_session
         self.requested_instants: list[datetime] = []
+        self.next_race_requested_instants: list[datetime] = []
         self.post_race_requested_instants: list[datetime] = []
 
     def get_next_session_after(self, when: datetime) -> Session | None:
         self.requested_instants.append(when)
         return self.next_session
+
+    def get_next_race_after(self, when: datetime) -> Session | None:
+        self.next_race_requested_instants.append(when)
+        return self.next_race
 
     def get_post_race_briefing(self, when: datetime) -> PostRaceBriefing | None:
         self.post_race_requested_instants.append(when)
