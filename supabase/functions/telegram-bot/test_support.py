@@ -2,7 +2,7 @@ from datetime import datetime
 from types import ModuleType, SimpleNamespace
 import sys
 
-from domain import Session, User
+from domain import PostRaceBriefing, Session, User
 
 
 telegram_module = ModuleType("telegram")
@@ -115,15 +115,24 @@ class FakeMessagingService:
 
 class FakeSessionProvider:
     def __init__(
-        self, next_session: Session | None, source_name: str = "OpenF1"
+        self,
+        next_session: Session | None,
+        source_name: str = "OpenF1",
+        post_race_briefing: PostRaceBriefing | None = None,
     ) -> None:
         self.next_session = next_session
         self.source_name = source_name
+        self.post_race_briefing = post_race_briefing
         self.requested_instants: list[datetime] = []
+        self.post_race_requested_instants: list[datetime] = []
 
     def get_next_session_after(self, when: datetime) -> Session | None:
         self.requested_instants.append(when)
         return self.next_session
+
+    def get_post_race_briefing(self, when: datetime) -> PostRaceBriefing | None:
+        self.post_race_requested_instants.append(when)
+        return self.post_race_briefing
 
     def get_source_name(self) -> str:
         return self.source_name

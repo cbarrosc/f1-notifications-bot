@@ -11,7 +11,7 @@ from telegram import (
 from telegram.ext import Application
 from supabase import Client, create_client
 
-from domain import Session, User
+from domain import PodiumFinisher, PostRaceBriefing, Session, User
 
 
 logger = logging.getLogger(__name__)
@@ -276,8 +276,67 @@ class OpenF1SessionProvider:
                 meeting_details["name"],
             ),
             date_start=next_session.date_start,
+            session_key=next_session.session_key,
             meeting_key=next_session.meeting_key,
+            meeting_name=meeting_details["short_name"],
             location=meeting_details["location"],
+            session_type=next_session.session_name,
+        )
+
+    def get_post_race_briefing(self, when: datetime) -> PostRaceBriefing | None:
+        """Fetch the latest completed race, its podium and the next grand prix."""
+
+        sessions = self._get_sessions_for_year(when.year, session_name="Race")
+        previous_races = sorted(
+            [
+                session
+                for session in sessions
+                if session.date_start < when
+            ],
+            key=lambda session: session.date_start,
+            reverse=True,
+        )
+        if not previous_races:
+            return None
+
+        completed_race = previous_races[0]
+        if completed_race.session_key is None:
+            return None
+        meeting_details = self._get_meeting_details(when.year, completed_race.meeting_key)
+        podium = self._get_session_podium(completed_race.session_key)
+        if len(podium) < 3:
+            return None
+
+        upcoming_races = [
+            session
+            for session in sessions
+            if session.date_start > when
+        ]
+        next_grand_prix: str | None = None
+        days_left: int | None = None
+        if upcoming_races:
+            next_race = min(upcoming_races, key=lambda session: session.date_start)
+            next_meeting = self._get_meeting_details(when.year, next_race.meeting_key)
+            next_grand_prix = next_meeting["short_name"] or next_meeting["name"]
+            days_left = (next_race.date_start.date() - when.date()).days
+
+        return PostRaceBriefing(
+            completed_race=Session(
+                session_name=_build_session_display_name(
+                    completed_race.session_name,
+                    meeting_details["name"],
+                ),
+                date_start=completed_race.date_start,
+                date_end=completed_race.date_end,
+                session_key=completed_race.session_key,
+                meeting_key=completed_race.meeting_key,
+                meeting_name=meeting_details["short_name"],
+                location=meeting_details["location"],
+                session_type=completed_race.session_name,
+            ),
+            podium=(podium[0], podium[1], podium[2]),
+            next_grand_prix=next_grand_prix,
+            days_left=days_left,
         )
 
     def get_source_name(self) -> str:
@@ -285,13 +344,16 @@ class OpenF1SessionProvider:
 
         return "OpenF1"
 
-    def _get_sessions_for_year(self, year: int) -> list[Session]:
+    def _get_sessions_for_year(self, year: int, session_name: str | None = None) -> list[Session]:
         """Fetch the sessions for the requested year."""
 
-        logger.info("Fetching OpenF1 sessions year=%s", year)
+        logger.info("Fetching OpenF1 sessions year=%s session_name=%s", year, session_name)
+        params: dict[str, object] = {"year": year}
+        if session_name is not None:
+            params["session_name"] = session_name
         response = requests.get(
             f"{self._base_url}/sessions",
-            params={"year": year},
+            params=params,
             timeout=10,
         )
         response.raise_for_status()
@@ -306,15 +368,20 @@ class OpenF1SessionProvider:
 
             session_name = row.get("session_name")
             raw_date_start = row.get("date_start")
+            raw_date_end = row.get("date_end")
             if not isinstance(session_name, str) or not isinstance(raw_date_start, str):
                 continue
 
             meeting_key = row.get("meeting_key")
+            session_key = row.get("session_key")
             sessions.append(
                 Session(
                     session_name=session_name,
                     date_start=_parse_openf1_datetime(raw_date_start),
+                    date_end=_parse_openf1_datetime(raw_date_end) if isinstance(raw_date_end, str) else None,
+                    session_key=session_key if isinstance(session_key, int) else None,
                     meeting_key=meeting_key if isinstance(meeting_key, int) else None,
+                    session_type=session_name,
                 )
             )
 
@@ -324,7 +391,7 @@ class OpenF1SessionProvider:
         """Return the official meeting name and location for a specific meeting key."""
 
         if meeting_key is None:
-            return {"name": None, "location": None}
+            return {"name": None, "short_name": None, "location": None}
 
         logger.info("Fetching OpenF1 meeting year=%s meeting_key=%s", year, meeting_key)
         response = requests.get(
@@ -353,10 +420,77 @@ class OpenF1SessionProvider:
 
             return {
                 "name": resolved_name,
+                "short_name": meeting_name if isinstance(meeting_name, str) else None,
                 "location": location if isinstance(location, str) else None,
             }
 
-        return {"name": None, "location": None}
+        return {"name": None, "short_name": None, "location": None}
+
+    def _get_session_podium(self, session_key: int) -> list[PodiumFinisher]:
+        """Fetch the top three session results enriched with driver and team data."""
+
+        logger.info("Fetching OpenF1 session results session_key=%s", session_key)
+        response = requests.get(
+            f"{self._base_url}/session_result?session_key={session_key}&position%3C=3",
+            timeout=10,
+        )
+        response.raise_for_status()
+        payload: object = response.json()
+        if not isinstance(payload, list):
+            raise ValueError("Invalid OpenF1 session results payload.")
+
+        podium: list[PodiumFinisher] = []
+        for row in payload:
+            if not isinstance(row, dict):
+                continue
+
+            position = row.get("position")
+            driver_number = row.get("driver_number")
+            if not isinstance(position, int) or not isinstance(driver_number, int):
+                continue
+
+            driver_details = self._get_driver_details(session_key, driver_number)
+            podium.append(
+                PodiumFinisher(
+                    position=position,
+                    driver_name=driver_details["name"] or str(driver_number),
+                    team_name=driver_details["team"] or "TBC",
+                )
+            )
+
+        podium.sort(key=lambda finisher: finisher.position)
+        return podium
+
+    def _get_driver_details(self, session_key: int, driver_number: int) -> dict[str, str | None]:
+        """Fetch a driver's display name and team for a specific session."""
+
+        logger.info(
+            "Fetching OpenF1 driver details session_key=%s driver_number=%s",
+            session_key,
+            driver_number,
+        )
+        response = requests.get(
+            f"{self._base_url}/drivers",
+            params={"session_key": session_key, "driver_number": driver_number},
+            timeout=10,
+        )
+        response.raise_for_status()
+        payload: object = response.json()
+        if not isinstance(payload, list):
+            raise ValueError("Invalid OpenF1 drivers payload.")
+
+        for row in payload:
+            if not isinstance(row, dict):
+                continue
+
+            full_name = row.get("full_name")
+            team_name = row.get("team_name")
+            return {
+                "name": full_name if isinstance(full_name, str) else None,
+                "team": team_name if isinstance(team_name, str) else None,
+            }
+
+        return {"name": None, "team": None}
 
 
 def _parse_openf1_datetime(value: str) -> datetime:

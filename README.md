@@ -9,6 +9,8 @@ Today the bot supports:
 - alert deactivation with `/unsubscribe`
 - timezone selection with `/set_country`
 - weekly digest delivery through `POST /wake-up`
+- session reminders through `POST /wake-up`
+- post-race podium briefings through `POST /wake-up`
 
 ## Does it write to Supabase using `supabase-py`?
 
@@ -28,6 +30,7 @@ The `db password` is not used in this code. To run this app, the relevant variab
 - `SUPABASE_KEY`
 - `TELEGRAM_TOKEN`
 - `SECRET_TOKEN`
+- `DISABLE_SESSION_REMINDER_WINDOW`
 
 ## Environment Variables
 
@@ -38,6 +41,7 @@ SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 SUPABASE_KEY=YOUR_SUPABASE_KEY
 TELEGRAM_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
 SECRET_TOKEN=YOUR_SECRET_BEARER_TOKEN
+DISABLE_SESSION_REMINDER_WINDOW=false
 ```
 
 `load_dotenv()` runs at startup, so `uvicorn` will load these variables from `.env`.
@@ -156,6 +160,9 @@ The bot now expects these keys to exist in `bot_settings`:
 - `unsubscribe_ok`
 - `timezone_confirmation_text`
 - `weekly_summary_msg`
+- `alert_lead_time`
+- `session_reminder_msg`
+- `post_race_briefing_msg`
 
 If any of them is missing when its command is executed, the request returns an error instead of using a hardcoded fallback message.
 
@@ -320,11 +327,19 @@ curl "$SUPABASE_URL/rest/v1/users?user_id=eq.1568732224&select=*" \
 
 The `POST /wake-up` endpoint is protected with a bearer token that must match `SECRET_TOKEN`.
 
-It currently supports the `weekly_digest` trigger. When it receives that trigger:
+It currently supports these triggers:
+
+- `weekly_digest`
+- `session_reminder`
+- `post_race_briefing`
+
+### `weekly_digest`
+
+When it receives `weekly_digest`:
 
 1. It fetches the next upcoming session from OpenF1.
 2. It resolves the session location from the meeting data.
-3. It converts the session start time to Chile time.
+3. It converts the session start time to each user's configured timezone.
 4. It reads `weekly_summary_msg` from `bot_settings`.
 5. It sends the rendered message to every user whose row in `users` has `status: "active"`.
 
@@ -333,6 +348,8 @@ The message template can use these placeholders:
 - `{name}`
 - `{location}`
 - `{time}`
+- `{flag}`
+- `{tz}`
 - `{session_name}`
 
 You can trigger it manually with:
@@ -342,6 +359,73 @@ curl -X POST http://127.0.0.1:8000/wake-up \
   -H "Authorization: Bearer $SECRET_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"trigger_type":"weekly_digest"}'
+```
+
+### `session_reminder`
+
+When it receives `session_reminder`:
+
+1. It fetches the next upcoming session from OpenF1.
+2. It reads `alert_lead_time` from `bot_settings`.
+3. It sends reminders only when the session starts within that window.
+4. It reads `session_reminder_msg` from `bot_settings`.
+5. It renders the message for every active user using that user's timezone.
+
+The reminder template can use these placeholders:
+
+- `{name}`
+- `{circuit}`
+- `{local_time}`
+- `{flag}`
+- `{tz}`
+- `{session_type}`
+
+Manual test:
+
+```bash
+curl -X POST http://127.0.0.1:8000/wake-up \
+  -H "Authorization: Bearer $SECRET_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"trigger_type":"session_reminder"}'
+```
+
+If you want to test it even when the next session is still outside the alert window, set this in `.env`:
+
+```env
+DISABLE_SESSION_REMINDER_WINDOW=true
+```
+
+### `post_race_briefing`
+
+When it receives `post_race_briefing`:
+
+1. It finds the most recent completed `Race` session in OpenF1.
+2. It fetches the official podium from `session_result`.
+3. It enriches each podium finisher with driver and team data from `drivers`.
+4. It finds the next `Race` session to mention the next grand prix.
+5. It reads `post_race_briefing_msg` from `bot_settings`.
+6. It sends the rendered message to all active users.
+
+The post-race template can use these placeholders:
+
+- `{name}`
+- `{circuit}`
+- `{P1_driver}`
+- `{P1_team}`
+- `{P2_driver}`
+- `{P2_team}`
+- `{P3_driver}`
+- `{P3_team}`
+- `{next_gp}`
+- `{days_left}`
+
+Manual test:
+
+```bash
+curl -X POST http://127.0.0.1:8000/wake-up \
+  -H "Authorization: Bearer $SECRET_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"trigger_type":"post_race_briefing"}'
 ```
 
 If the bearer token is missing or invalid, the endpoint returns:
@@ -373,3 +457,4 @@ Example response when the digest is sent:
 
 - The webhook ignores duplicate `update_id` values to reduce accidental double-processing.
 - Telegram messages are sent as plain text by default, not Markdown, so templates from `bot_settings` do not need Markdown escaping.
+- Unknown or unsupported `trigger_type` values return an error payload from `/wake-up`.

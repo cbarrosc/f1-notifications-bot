@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Protocol
 
-from domain import Session, User
+from domain import PostRaceBriefing, Session, User
 
 
 class UserRepository(Protocol):
@@ -66,5 +66,7 @@ class SessionProvider(Protocol):
     """Contract for retrieving the next upcoming session from any source."""
 
     def get_next_session_after(self, when: datetime) -> Session | None: ...
+
+    def get_post_race_briefing(self, when: datetime) -> PostRaceBriefing | None: ...
 
     def get_source_name(self) -> str: ...

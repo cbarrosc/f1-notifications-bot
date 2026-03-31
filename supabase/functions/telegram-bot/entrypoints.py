@@ -41,6 +41,16 @@ def _get_env(name: str) -> str:
     return value
 
 
+def _get_bool_env(name: str, default: bool) -> bool:
+    """Return a boolean environment variable with a safe default."""
+
+    value = os.getenv(name)
+    if value is None or value == "":
+        return default
+
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 app = FastAPI()
 supabase_client = _build_supabase_client(
     supabase_url=_get_env("SUPABASE_URL"),
@@ -60,6 +70,10 @@ wake_up_use_case = WakeUpUseCase(
     settings_repository,
     user_repository,
     telegram_client,
+    enforce_session_reminder_window=not _get_bool_env(
+        "DISABLE_SESSION_REMINDER_WINDOW",
+        default=False,
+    ),
 )
 wake_up_token = _get_env("SECRET_TOKEN")
 

@@ -33,5 +33,28 @@ class Session:
 
     session_name: str
     date_start: datetime
+    date_end: datetime | None = None
+    session_key: int | None = None
     meeting_key: int | None = None
+    meeting_name: str | None = None
     location: str | None = None
+    session_type: str | None = None
+
+
+@dataclass(frozen=True)
+class PodiumFinisher:
+    """Represent a podium finisher for a completed race session."""
+
+    position: int
+    driver_name: str
+    team_name: str
+
+
+@dataclass(frozen=True)
+class PostRaceBriefing:
+    """Summarize the data needed for the post-race briefing trigger."""
+
+    completed_race: Session
+    podium: tuple[PodiumFinisher, PodiumFinisher, PodiumFinisher]
+    next_grand_prix: str | None
+    days_left: int | None
